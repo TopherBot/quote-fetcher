@@ -1,0 +1,76 @@
+name: CI
+
+# Trigger on pushes and pull‑requests to the default branch
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+# Limit the GITHUB_TOKEN to read‑only by default (least privilege)
+permissions:
+  contents: read   # needed for checkout
+  # No write permissions unless explicitly granted later
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      # Explicitly set read‑only again at the job level for safety
+      contents: read
+    steps:
+      # ------------------------------------------------------------
+      # 1️⃣  Checkout – pinned to immutable commit SHA
+      # ------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@d173e5c147a472c41b5d110c0ef05d720c9a64c8  # SHA of v3.5.3
+        with:
+          persist-credentials: false   # avoid leaking token to sub‑processes
+
+      # ------------------------------------------------------------
+      # 2️⃣  Set up Python – also pinned to SHA
+      # ------------------------------------------------------------
+      - name: Set up Python 3.11
+        uses: actions/setup-python@c0e5f1ff5a0a5bfe2c5bc5f9c0e89da541d864f0  # SHA of v4.7.0
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      # ------------------------------------------------------------
+      # 3️⃣  Install strict dependencies (pinned in requirements.txt)
+      # ------------------------------------------------------------
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ------------------------------------------------------------
+      # 4️⃣  Lint – using flake8 (no external secret interpolation)
+      # ------------------------------------------------------------
+      - name: Run flake8 linting
+        run: |
+          pip install flake8==6.1.0
+          flake8 *.py
+
+      # ------------------------------------------------------------
+      # 5️⃣  Test – simple smoke test for the CLI
+      # ------------------------------------------------------------
+      - name: Run sanity test
+        run: |
+          python - <<'PY'
+          import subprocess, sys
+          result = subprocess.run([sys.executable, 'main.py'], capture_output=True, text=True, timeout=15)
+          if result.returncode != 0:
+              print('Test failed:', result.stderr, file=sys.stderr)
+              sys.exit(1)
+          print('Output:', result.stdout.strip())
+          PY
+
+    # ------------------------------------------------------------
+    # Security hardening notes (no secrets used in this tiny repo)
+    # ------------------------------------------------------------
+    # - All third‑party actions are pinned to full commit SHAs.
+    # - Default GITHUB_TOKEN is read‑only; no write scopes.
+    # - No secrets are interpolated directly into `run:` blocks.
+    # - `persist-credentials: false` prevents token leakage from checkout.
+    # - OIDC can be added later for cloud deployments without storing static credentials.
