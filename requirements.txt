@@ -1,0 +1,2 @@
+# Pin exact versions – avoids supply‑chain drift
+requests==2.31.0
